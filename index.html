@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="安藤至大">
+<title>実証分析の手法：データの可視化 | 労働経済論 11月25日</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fffcf5; --surface: #ffffff; --ink: #1d2140; --muted: #4a4f6a;
+  --line: #1d2140; --shadow: #1d2140;
+  --accent: #2747d6; --accent-soft: #e6ebff;
+  --coral: #ff6f59; --coral-soft: #ffe8e3;
+  --yellow: #ffc83d; --yellow-soft: #fff4d4;
+  --pass-fill: #3ccf91; --pass-soft: #ddf7ea;
+  --code-bg: #f6f3ea; --out-bg: #ffffff; --err: #b3261e; --warn: #8a5a00;
+  --on-fill: #1d2140;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14173a; --surface: #1f2452; --ink: #fff8ea; --muted: #c3c6e0;
+    --line: #fff8ea; --shadow: #070920;
+    --accent: #8fa6ff; --accent-soft: #2a3170;
+    --coral-soft: #4a2a33; --yellow-soft: #4a3f1f; --pass-soft: #1e4a3c;
+    --code-bg: #171b44; --out-bg: #12153a; --err: #ff9b8f; --warn: #ffd27a;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 72px; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Noto Sans JP", system-ui, sans-serif; font-size: 16px; line-height: 1.85;
+}
+h1, h2, h3, .btn, .label, .status, nav { font-family: "Zen Maru Gothic", "Noto Sans JP", sans-serif; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: .92em; background: var(--code-bg); padding: .05em .35em; border-radius: 6px; }
+
+/* ヘッダーと状態バー */
+.topbar {
+  position: sticky; top: 0; z-index: 10; background: var(--surface);
+  border-bottom: 2px solid var(--line);
+}
+.topbar-inner { max-width: 980px; margin: 0 auto; padding: 8px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.topbar .course { font-family: "Zen Maru Gothic", sans-serif; font-weight: 900; margin-right: auto; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); border: 2px solid var(--line); }
+.status[data-phase="ready"] .dot { background: var(--pass-fill); }
+.status[data-phase="starting"] .dot, .status[data-phase="busy"] .dot { background: var(--yellow); animation: blink 1s steps(2) infinite; }
+.status[data-phase="failed"] .dot { background: var(--coral); }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none !important; } }
+@media (max-width: 600px) { .topbar { position: static; } html { scroll-padding-top: 0; } }
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 24px 20px 80px; }
+.hero { margin: 16px 0 28px; }
+.hero .date { display: inline-block; font-family: "Zen Maru Gothic", sans-serif; font-weight: 700; background: var(--yellow); color: var(--on-fill); border: 2px solid var(--line); border-radius: 999px; padding: 2px 14px; }
+.hero h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.3; margin: 12px 0 8px; font-weight: 900; }
+.hero p { color: var(--muted); margin: 0; max-width: 72ch; }
+
+.card { background: var(--surface); border: 2px solid var(--line); border-radius: 24px; box-shadow: 5px 5px 0 var(--shadow); padding: 20px 24px; margin: 20px 0; }
+.card h2 { margin-top: 0; }
+.howto { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.howto > div { border-radius: 16px; padding: 12px 16px; }
+.howto .local { background: var(--accent-soft); }
+.howto .web { background: var(--yellow-soft); }
+.howto h3 { margin: 0 0 4px; font-size: 17px; }
+.howto ul { margin: 4px 0 0; padding-left: 1.2em; }
+@media (max-width: 720px) { .howto { grid-template-columns: 1fr; } }
+
+nav.toc ol { margin: 0; padding-left: 0; list-style: none; counter-reset: sec; }
+nav.toc li { padding-left: 2.2em; position: relative; }
+nav.toc li:not(.tocpart)::before { counter-increment: sec; content: counter(sec) "."; position: absolute; left: .4em; color: var(--muted); }
+nav.toc li.tocpart { padding-left: 0; margin-top: 8px; font-family: "Zen Maru Gothic", sans-serif; font-weight: 900; color: var(--accent); }
+nav.toc li { font-weight: 700; }
+
+
+section { margin-top: 48px; }
+.part { margin: 64px 0 0; padding: 16px 20px; border: 2px solid var(--line); border-radius: 20px; background: var(--yellow); color: var(--on-fill); box-shadow: 5px 5px 0 var(--shadow); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.part .partno { font-family: "Zen Maru Gothic", sans-serif; font-weight: 900; font-size: 15px; border: 2px solid var(--on-fill); border-radius: 999px; padding: 0 12px; background: #fff; }
+.part .parttitle { font-family: "Zen Maru Gothic", sans-serif; font-weight: 900; font-size: 22px; }
+.part .partnote { flex-basis: 100%; font-size: 14px; }
+h2 { font-size: 26px; font-weight: 900; line-height: 1.4; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 4px solid var(--coral); display: inline-block; }
+h3 { font-size: 20px; font-weight: 700; margin: 32px 0 8px; }
+.prose { max-width: 72ch; }
+.prose p { margin: .4em 0 .8em; }
+ol.steps { padding-left: 1.4em; max-width: 72ch; }
+ol.steps > li { margin-bottom: 10px; }
+
+.note, .warnbox, .tip { border: 2px solid var(--line); border-radius: 16px; padding: 12px 16px; margin: 16px 0; max-width: 78ch; }
+.note { background: var(--accent-soft); }
+.tip { background: var(--pass-soft); }
+.warnbox { background: var(--coral-soft); }
+.note > .label, .warnbox > .label, .tip > .label { font-weight: 900; display: block; margin-bottom: 2px; }
+.warnbox ul, .note ul, .tip ul { margin: 4px 0; padding-left: 1.2em; }
+
+/* 画像 */
+figure { margin: 12px 0 20px; max-width: 720px; }
+figure img { display: block; width: 100%; height: auto; border: 2px solid var(--line); border-radius: 12px; background: #fff; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 4px; }
+details.shots { margin: 8px 0 20px; max-width: 760px; }
+details.shots > summary { cursor: pointer; font-weight: 700; color: var(--accent); font-family: "Zen Maru Gothic", sans-serif; }
+details.shots[open] > summary { margin-bottom: 8px; }
+.shotgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.shotgrid figure { margin: 0; }
+.img-missing { border: 2px dashed var(--muted); border-radius: 12px; padding: 16px; color: var(--muted); font-size: 14px; }
+
+/* RStudio の画面構成図 */
+.panes { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 8px; max-width: 640px; margin: 12px 0 20px; border: 2px solid var(--line); border-radius: 16px; padding: 8px; background: var(--surface); }
+.pane { border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.6; min-height: 92px; }
+.pane b { display: block; font-family: "Zen Maru Gothic", sans-serif; font-size: 15px; }
+.pane.src { background: var(--yellow-soft); }
+figure.shot { max-width: 760px; margin: 12px 0 16px; }
+.shotbox { position: relative; }
+.shotbox img { display: block; width: 100%; height: auto; border: 2px solid var(--line); border-radius: 12px; }
+.badge { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-family: "Zen Maru Gothic", sans-serif; font-weight: 900; font-size: clamp(11px, 2vw, 16px); color: #1d2140; border: 2px solid #1d2140; border-radius: 999px; padding: 2px 12px; box-shadow: 3px 3px 0 #1d2140; }
+.badge.b1 { background: #ffe9a8; } .badge.b2 { background: #cfd9ff; } .badge.b3 { background: #bdf0d6; } .badge.b4 { background: #ffd2c9; }
+.pane.con { background: var(--accent-soft); }
+.pane.env { background: var(--pass-soft); }
+.pane.files { background: var(--coral-soft); }
+
+/* コード */
+.code { border: 2px solid var(--line); border-radius: 16px; background: var(--code-bg); margin: 12px 0 18px; overflow: hidden; max-width: 860px; }
+.code-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 2px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.code-bar .where { font-size: 13px; font-weight: 700; color: var(--muted); margin-right: auto; font-family: "Zen Maru Gothic", sans-serif; }
+.btn { font-weight: 700; font-size: 14px; border: 2px solid var(--line); border-radius: 999px; padding: 3px 14px; cursor: pointer; background: var(--surface); color: var(--ink); box-shadow: 2px 2px 0 var(--shadow); }
+.btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.btn:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn.copy { background: var(--accent); color: #fff; }
+@media (prefers-color-scheme: dark) { .btn.copy { color: #14173a; } }
+.btn.run { background: var(--yellow-soft); }
+.btn[disabled] { opacity: .55; cursor: wait; }
+.code textarea {
+  display: block; width: 100%; border: 0; resize: vertical; background: transparent; color: var(--ink);
+  font-family: var(--mono); font-size: 14.5px; line-height: 1.6; padding: 12px 14px; tab-size: 2; white-space: pre; overflow-x: auto;
+}
+.out { border-top: 2px dashed var(--line); background: var(--out-bg); padding: 10px 14px; }
+.out pre { margin: 0; font-family: var(--mono); font-size: 13.5px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+.out .echo { color: var(--muted); }
+.out .err { color: var(--err); font-weight: 700; }
+.out .warn { color: var(--warn); }
+.out .msg { color: var(--muted); }
+.out .note-line { color: var(--muted); font-style: italic; }
+.out .hint { font-family: "Noto Sans JP", sans-serif; white-space: normal; background: var(--coral-soft); border-radius: 10px; padding: 6px 10px; margin: 6px 0; font-size: 14px; color: var(--ink); }
+.out canvas { display: block; max-width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--muted); border-radius: 8px; background: #fff; }
+.out img.plot { display: block; max-width: 100%; height: auto; margin: 8px 0; border: 1px solid var(--muted); border-radius: 8px; background: #fff; }
+.filenote { max-width: 980px; margin: 12px auto 0; padding: 0 20px; }
+.out .running { color: var(--muted); font-size: 14px; }
+.viewer { margin: 8px 0; }
+.viewer .vt { font-weight: 700; font-size: 14px; margin-bottom: 4px; font-family: "Zen Maru Gothic", sans-serif; }
+.viewer .scroll { max-height: 380px; overflow: auto; border: 1px solid var(--muted); border-radius: 8px; }
+.viewer table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+.viewer th, .viewer td { padding: 2px 10px; border-bottom: 1px solid rgba(127,127,127,.25); white-space: nowrap; text-align: right; }
+.viewer th { position: sticky; top: 0; background: var(--surface); }
+.viewer td:first-child, .viewer th:first-child { color: var(--muted); }
+.out-tools { display: flex; justify-content: flex-end; margin-top: 6px; }
+.out-tools button { font-size: 12px; padding: 1px 10px; box-shadow: none; }
+
+.quizbox { border: 2px solid var(--line); border-radius: 16px; padding: 12px 16px; margin: 16px 0; max-width: 78ch; background: var(--yellow-soft); }
+.quizbox > .label { font-weight: 900; display: block; margin-bottom: 2px; }
+.quizbox ul { margin: 4px 0; padding-left: 1.2em; }
+.src { font-size: 13px; color: var(--muted); margin: 6px 0 0; max-width: 78ch; line-height: 1.6; }
+.tablewrap { overflow-x: auto; max-width: 78ch; margin: 12px 0; }
+table.vars { border-collapse: collapse; font-size: 14.5px; width: 100%; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; }
+table.vars.nums td { text-align: right; font-family: var(--mono); }
+table.vars.nums thead th:not(:first-child) { text-align: right; }
+table.vars th, table.vars td { text-align: left; padding: 6px 12px; border-bottom: 1px solid rgba(127,127,127,.3); vertical-align: top; }
+table.vars th { font-family: "Zen Maru Gothic", sans-serif; background: var(--accent-soft); }
+.formula { font-family: "Zen Maru Gothic", sans-serif; font-weight: 700; text-align: center; background: var(--surface); border: 2px dashed var(--line); border-radius: 12px; padding: 10px 16px; margin: 12px 0; max-width: 72ch; }
+.kbd { font-family: var(--mono); font-size: 13px; border: 1.5px solid var(--line); border-bottom-width: 3px; border-radius: 6px; padding: 0 6px; background: var(--surface); }
+footer { margin-top: 64px; color: var(--muted); font-size: 14px; border-top: 2px solid var(--line); padding-top: 16px; }
+.code[data-local] .code-bar .where::after { content: "（ブラウザ版では実行できません）"; font-weight: 400; }
+.quizbox details.shots { margin: 6px 0 2px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="course">労働経済論　11月25日</span>
+    <span class="status" id="rstatus" data-phase="idle" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="rstatus-text">ブラウザ版R：未起動</span></span>
+    <button class="btn" id="btn-start" type="button">ブラウザ版Rを準備</button>
+    <button class="btn" id="btn-restart" type="button" hidden>再起動</button>
+  </div>
+</div>
+
+<div class="filenote" id="filenote" hidden><div class="note" style="margin:0"><span class="label">このページはファイルとして直接開かれています</span>この開き方では「ブラウザで実行」が動きません（特にSafari）。授業のWebページ（https:// で始まるURL）から開いてください。</div></div>
+
+<main class="wrap">
+  <header class="hero">
+    <span class="date">2026年11月25日</span>
+    <h1>実証分析の手法：データの可視化</h1>
+    <p>三崎実業株式会社の社員120人のデータを、Rのパッケージggplot2を使って図にします。棒グラフ・ヒストグラム・散布図・箱ひげ図といった基本の図から、グループ別の比較やヒートマップまでを描き、最後に「全員を完全出社にすると会社の利益はどうなるか」というテレワークの回の課題に、図を使って取り組みます。</p>
+  </header>
+
+  <div class="card" id="howto">
+    <h2>このページの使い方</h2>
+    <div class="howto">
+      <div class="local">
+        <h3>基本：自分のパソコンのRStudioで</h3>
+        <ul>
+          <li>コードの右上の「<b>コピー</b>」を押して、RStudioのRスクリプトに貼り付けて実行する（<span class="kbd">Ctrl</span>＋<span class="kbd">Enter</span>、Macは <span class="kbd">⌘</span>＋<span class="kbd">Return</span>）</li>
+          <li>今日のスクリプトは、次回以降の分析でも使うので保存しておく</li>
+        </ul>
+      </div>
+      <div class="web">
+        <h3>RStudioが動かないとき：ブラウザで</h3>
+        <ul>
+          <li>コードの右上の「<b>▶ ブラウザで実行</b>」を押すと、このページ上でRが動く</li>
+          <li>初回はパッケージの読み込みに数十秒かかる。動かなくなったら上の「再起動」</li>
+          <li>ページを閉じると結果は消える</li>
+        </ul>
+      </div>
+    </div>
+    <p class="prose" style="margin:12px 0 0">コードは書き換えて実行できます。色や数字を変えて、図がどう変わるかを試してみましょう。</p>
+  </div>
+
+  <nav class="card toc" aria-label="目次">
+    <ol>
+      <li class="tocpart">準備</li>
+      <li><a href="#what">可視化とは</a></li>
+      <li><a href="#data">今日のデータ：三崎実業の社員120人</a></li>
+      <li><a href="#prep">パッケージとデータの読み込み、日本語の設定</a></li>
+      <li class="tocpart">基本の図</li>
+      <li><a href="#one">1変数の可視化：棒グラフとヒストグラム</a></li>
+      <li><a href="#two">2変数の可視化：散布図</a></li>
+      <li><a href="#box">グループを比べる：箱ひげ図</a></li>
+      <li class="tocpart">応用</li>
+      <li><a href="#adv">分割・重ね合わせ・ヒートマップ</a></li>
+      <li><a href="#case">三崎実業の課題に図で取り組む</a></li>
+      <li><a href="#save">図を保存する</a></li>
+      <li><a href="#summary">まとめと次回予告</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section id="what">
+    <h2>1. 可視化とは</h2>
+    <div class="prose">
+      <p>可視化（visualization）とは、文字どおり目に見えるようにすること。データをそのまま眺めただけでは分からない性質を、図にすることで捉えやすくする。</p>
+      <p>データを手に入れたら、いきなり回帰分析などを始めるのではなく、まず図にしてみる。どんな人が何人いるのか、値はどのくらいばらついているのか、外れた値はないか、2つの変数にどんな関係がありそうか。これを先に見ておくと、その後の分析を効果的・効率的に進められるし、分析の結果が図と食い違ったときに誤りに気づける。</p>
+    </div>
+    <div class="tablewrap">
+      <table class="vars">
+        <thead><tr><th>見たいもの</th><th>使う図</th><th>今日の例</th></tr></thead>
+        <tbody>
+          <tr><td>カテゴリごとの人数・平均</td><td>棒グラフ</td><td>部署別の人数、部署別の平均時給</td></tr>
+          <tr><td>1つの数値の分布</td><td>ヒストグラム・密度プロット</td><td>時給の分布</td></tr>
+          <tr><td>2つの数値の関係</td><td>散布図</td><td>年齢と時給、生産性と時給</td></tr>
+          <tr><td>グループ間での分布の違い</td><td>箱ひげ図</td><td>勤務形態別・男女別の時給</td></tr>
+          <tr><td>2つのカテゴリの組み合わせごとの値</td><td>ヒートマップ</td><td>部署×勤務形態の平均時給</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="data">
+    <h2>2. 今日のデータ：三崎実業の社員120人</h2>
+    <div class="prose">
+      <p>テレワークの回（後期第7回）で配布した、三崎実業株式会社（架空の会社・架空のデータ）の本社正社員120人のデータを使う。</p>
+      <ul>
+        <li>神田三崎町に本社を置く中堅の専門商社。2020年から、経営企画部・財務経理部・情報システム部・海外事業部の4部署でハイブリッド勤務（週3日出社・週2日在宅）を認めている。4部署の60人のうち40人がハイブリッド勤務を選び、20人は自分の意思で完全出社を続けている。ほかの4部署は全員が完全出社</li>
+        <li>2022年度から年俸制。ハイブリッド勤務を選んだ社員は、ハイブリッド勤務を条件とした年俸に合意している</li>
+        <li>社長は「来年4月から全員完全出社にする」と指示した。経営企画室の担当者として、全員を完全出社にすると会社の利益にどんな影響が出るかを考える</li>
+      </ul>
+      <p>前回は配布資料の図を見て議論した。今日は、その図を<b>自分で描く</b>ところまで進む。</p>
+    </div>
+    <div class="note"><span class="label">データのファイル</span>配布した <code>misaki_employees.csv</code> を使う。手元にない人は <a href="misaki_employees.csv" download>ここからダウンロード</a> し、今日のRスクリプトと同じフォルダに保存しておく。</div>
+    <div class="tablewrap">
+      <table class="vars">
+        <thead><tr><th>変数名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>社員番号（M001〜M120）</td></tr>
+          <tr><td><code>dept</code></td><td>部署（8部署）</td></tr>
+          <tr><td><code>workstyle</code></td><td>勤務形態（完全出社／ハイブリッド）</td></tr>
+          <tr><td><code>sex</code></td><td>性別</td></tr>
+          <tr><td><code>age</code></td><td>年齢（2026年4月1日時点）</td></tr>
+          <tr><td><code>educ_level</code>・<code>educ_years</code></td><td>最終学歴・教育年数（高校12、短大・高専・専門14、大学16、大学院18）</td></tr>
+          <tr><td><code>tenure</code></td><td>勤続年数</td></tr>
+          <tr><td><code>potential_exp</code></td><td>潜在経験年数（＝年齢−教育年数−6）。学校を出てから働いてきた年数の目安</td></tr>
+          <tr><td><code>commute_oneway_min</code></td><td>片道の通勤時間（分）</td></tr>
+          <tr><td><code>wage_hourly</code></td><td>時給（円）。月給を所定労働時間で割った値</td></tr>
+          <tr><td><code>annual_income</code></td><td>年収（円）</td></tr>
+          <tr><td><code>productivity_hourly</code></td><td>生産性（円/時）。本人が1時間に生む粗利への貢献額</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="prep">
+    <h2>3. パッケージとデータの読み込み、日本語の設定</h2>
+    <h3>パッケージを入れて、読み込む</h3>
+    <div class="prose">
+      <p>図は <b>ggplot2</b> というパッケージで描く。ggplot2 は、データの読み込みや加工に使う道具とまとめて <b>tidyverse</b> というパッケージに入っている。日本語を図に表示するために <b>showtext</b> も入れる。インストールは最初の1回だけでよい（数分かかることがある）。</p>
+      <p><code>#</code> の右に書いた部分はコメントで、実行されない。コードの内容を説明して、あとで思い出しやすくするために使う。</p>
+    </div>
+    <div class="code" data-where="Rのコード（最初の1回だけ）"><textarea rows="3"># パッケージのインストール（最初の1回だけ）
+install.packages("tidyverse")   # 図を描く ggplot2 や、データを加工する道具をまとめたパッケージ
+install.packages("showtext")    # 図の中に日本語を表示するためのパッケージ</textarea></div>
+    <div class="code" data-where="Rのコード"><textarea rows="1">library(tidyverse)   # パッケージを読み込む（RStudioを起動するたびに必要）</textarea></div>
+
+    <h3>データを読み込む</h3>
+    <div class="prose">
+      <p>まず、Rがファイルを探す場所（<b>作業ディレクトリ</b>、working directory）を、<code>misaki_employees.csv</code> を置いたフォルダにする。</p>
+    </div>
+    <ol class="steps">
+      <li>RStudioの右下の <b>Files</b> タブで、<code>misaki_employees.csv</code> を置いたフォルダまで移動する</li>
+      <li>Filesタブの歯車マーク（<b>More</b>）から <b>Set As Working Directory</b> を選ぶ</li>
+      <li>左下のConsoleに <code>setwd("…")</code> が表示されれば設定できている（メニューの Session → Set Working Directory → Choose Directory… でもよい）</li>
+    </ol>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse"><textarea rows="5"># 作業ディレクトリにある CSV ファイルを読み込み、misaki という名前を付ける
+misaki <- read_csv("misaki_employees.csv")
+
+# ファイルが見つからないと言われたら、Web上のファイルを直接読み込んでもよい
+# misaki <- read_csv("https://munetomoando.github.io/labor24/misaki_employees.csv")</textarea></div>
+    <div class="tip"><span class="label">Excel版を使う場合</span>配布した <code>misaki_employees.xlsx</code> を使うなら、<code>library(readxl)</code> のあとに <code>misaki <- read_excel("misaki_employees.xlsx")</code> とする（readxl は tidyverse と一緒にインストールされている）。</div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki"><textarea rows="2">View(misaki)      # 表として眺める
+glimpse(misaki)   # 変数の一覧と、それぞれの最初のほうの値</textarea></div>
+    <div class="quizbox"><span class="label">考えてみよう</span>120行×13列の表を眺めて、この会社の様子がどこまで分かるだろうか。「部署ごとに何人いるか」「時給はどのくらいばらついているか」「生産性が高い人ほど時給も高いか」を、表だけで答えられるだろうか。</div>
+
+    <h3>日本語が表示されるように設定する</h3>
+    <div class="prose">
+      <p>図のタイトルや軸に日本語を使うと、パソコンによっては文字が「□」になってしまう。これを防ぐために、Google Fonts から日本語フォント（Noto Sans JP）を取り込んで登録する。あわせて <code>theme_set()</code> で、これから描くすべての図の見た目（テーマ）・文字の大きさ・フォントを決めておく。</p>
+    </div>
+    <div class="code" data-where="Rのコード（RStudioを起動するたびに実行）" data-needs="tidyverse"><textarea rows="7">library(showtext)
+font_add_google("Noto Sans JP", "notosansjp")   # 日本語フォントを取り込み、notosansjp という名前で登録
+showtext_auto()                                  # 登録したフォントを図で使えるようにする
+
+# これから描く図のテーマ（theme_minimal）、文字の大きさ、フォントをまとめて決める
+theme_set(theme_minimal(base_size = 13, base_family = "notosansjp"))</textarea></div>
+    <div class="note"><span class="label">うまくいかないとき</span><code>font_add_google()</code> はインターネットからフォントを取り込むので、通信できないとエラーになる。その場合は上の3行は飛ばして、Windowsなら <code>theme_set(theme_minimal(base_size = 13))</code>、Macなら <code>theme_set(theme_minimal(base_size = 13, base_family = "Hiragino Sans"))</code> を実行する。</div>
+  </section>
+
+  <!-- 4 -->
+  <section id="one">
+    <h2>4. 1変数の可視化：棒グラフとヒストグラム</h2>
+    <h3>棒グラフ：カテゴリごとの人数</h3>
+    <div class="prose">
+      <p>棒グラフが扱うのは<b>カテゴリデータ</b>（部署、性別、学歴、勤務形態のように、グループに分けたデータ）。棒の長さは、そのカテゴリの件数（人数）や平均・合計を表す。棒と棒の間には隙間があり、それぞれ別のグループであることを示す。</p>
+      <p>ggplot2 の図は「<b>データ</b>」＋「<b>どの変数をどこに対応させるか</b>（<code>aes()</code>）」＋「<b>どんな図形で描くか</b>（<code>geom_〇〇()</code>）」を <code>+</code> でつないで作る。<code>aes</code> は aesthetic（見た目）の略で、データの値を、横軸・縦軸・色・形といった見た目に翻訳する役割を持つ。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="760x460"><textarea rows="5"># 部署別の人数
+ggplot(misaki, aes(x = dept)) +
+  geom_bar(fill = "lightgreen", color = "black") +   # 部署ごとに人数を数えて棒にする
+  labs(title = "部署別の人数", x = "部署", y = "人数") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))   # 部署名を45度傾けて重ならないようにする</textarea></div>
+    <div class="tip"><span class="label">ラベルが重なるとき</span>部署名が長いと横軸のラベルが重なるので、最後の <code>theme()</code> の行で45度傾けている。この行を消して <code>aes(x = dept)</code> を <code>aes(y = dept)</code> に変えると、棒が横向きになって部署名が読みやすくなる（そのときは <code>labs()</code> の x と y も入れ替える）。試してみよう。</div>
+    <div class="prose"><p><code>fill =</code> を <code>aes()</code> の中に書くと、変数の値によって棒を塗り分けられる。勤務形態で塗り分けてみよう。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="760x460"><textarea rows="4"># 部署別・勤務形態別の人数（積み上げ棒グラフ）
+ggplot(misaki, aes(x = dept, fill = workstyle)) +
+  geom_bar(color = "black") +
+  labs(title = "部署別・勤務形態別の人数", x = "部署", y = "人数", fill = "勤務形態") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</textarea></div>
+    <div class="quizbox"><span class="label">図から読み取ろう</span>ハイブリッド勤務の社員はどの部署にいるか。ハイブリッド勤務を認めている4部署でも、完全出社を選んでいる人がいることを確かめよう。</div>
+
+    <h3>並び順を指定する</h3>
+    <div class="prose"><p>文字のデータは、そのままだと文字コードの順に並ぶ。学歴なら教育年数の短い順に並べたい。<code>factor()</code> で順番（levels）を指定する。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="720x440"><textarea rows="8"># 学歴を、教育年数の短い順に並べる
+misaki <- misaki %>%
+  mutate(educ_level = factor(educ_level, levels = c("高校", "短大・高専・専門", "大学", "大学院")))
+
+ggplot(misaki, aes(x = educ_level)) +
+  geom_bar(fill = "lightgreen", color = "black") +
+  labs(title = "学歴別の人数", x = "最終学歴", y = "人数")</textarea></div>
+    <div class="note"><span class="label"><code>%>%</code>（パイプ）とは</span><code>A %>% B</code> は「Aを、次のBに渡す」という意味。<code>misaki %>% mutate(…)</code> は「misakiのデータに、mutate（列を作る・作り直す）を行う」と読む。手順を上から順に書けるので読みやすい。</div>
+
+    <h3>棒グラフ：カテゴリごとの平均</h3>
+    <div class="prose"><p>棒の長さで平均を表すこともできる。先に <code>group_by()</code> と <code>summarise()</code> で部署ごとの平均時給を計算し、その値をそのまま棒の長さにする（<code>geom_col()</code>）。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="760x460"><textarea rows="7"># 部署別の平均時給
+misaki %>%
+  group_by(dept) %>%                                 # 部署ごとに
+  summarise(mean_wage = mean(wage_hourly)) %>%       # 時給の平均を計算して
+  ggplot(aes(x = dept, y = mean_wage)) +             # 図にする
+  geom_col(fill = "skyblue", color = "black") +      # 値をそのまま棒の長さにする
+  labs(title = "部署別の平均時給", x = "部署", y = "平均時給（円）") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</textarea></div>
+
+    <h3>ヒストグラム：時給の分布</h3>
+    <div class="prose">
+      <p>ヒストグラムが扱うのは<b>連続量</b>（時給・年齢・生産性のように、数値が連続して変わるデータ）。数値を区間（bin）に分け、それぞれの区間に何人が入ったか（度数）を棒の高さで表す。棒と棒の間に隙間がないのは、区間がつながっていることを示す。分布の形（左右対称か、右に裾が長いか、山が2つあるか）が分かる。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5"># 時給のヒストグラム（250円ごとの区間に分ける）
+ggplot(misaki, aes(x = wage_hourly)) +
+  geom_histogram(binwidth = 250, fill = "skyblue", color = "black") +
+  labs(title = "時給の分布", x = "時給（円）", y = "人数（度数）")</textarea></div>
+    <div class="quizbox"><span class="label">やってみよう</span><code>binwidth = 250</code> を <code>100</code> や <code>500</code> に変えて実行してみよう。区間の分け方を細かくするか粗くするかで、分布の見え方はどう変わるだろうか。</div>
+    <div class="prose"><p>年齢は整数なので、棒グラフ（<code>geom_bar()</code>）で1歳ごとの人数を数えることもできる。ヒストグラムと見比べてみよう。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="4"># 年齢別の人数
+ggplot(misaki, aes(x = age)) +
+  geom_bar(fill = "lightgreen", color = "black") +   # 1歳ごとに人数を数える
+  labs(title = "年齢別の人数", x = "年齢", y = "人数")</textarea></div>
+  </section>
+
+  <!-- 5 -->
+  <section id="two">
+    <h2>5. 2変数の可視化：散布図</h2>
+    <div class="prose"><p>2つの数値の関係は<b>散布図</b>で見る。1人の社員が1つの点になる。年齢が上がると時給も高くなりそうだが、確かめてみよう。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="4"># 年齢と時給の関係
+ggplot(misaki, aes(x = age, y = wage_hourly)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +   # alpha は透明度（0〜1）。点の重なりが見える
+  labs(title = "年齢と時給の関係", x = "年齢", y = "時給（円）")</textarea></div>
+    <div class="quizbox"><span class="label">課題</span>年齢ではなく、<b>勤続年数</b>（<code>tenure</code>）と時給の関係を描くには、上のコードのどこを変えればよいだろうか。上のコード欄を書き換えて実行してみよう。
+      <details class="shots"><summary>答えの例</summary><p><code>x = age</code> を <code>x = tenure</code> に、<code>labs()</code> の <code>x = "年齢"</code> を <code>x = "勤続年数"</code> に変える。タイトルも「勤続年数と時給の関係」にしておく。</p></details>
+    </div>
+    <div class="prose">
+      <p>勤続年数と時給の図では、勤続年数が短いのに時給が高い人がいる。どんな人だろうか。</p>
+      <p>ヒントは<b>潜在経験年数</b>（学校を出てから働いてきた年数の目安）。潜在経験年数が勤続年数より長い人は、三崎実業に入る前に他社で働いていた可能性が高い（浪人・留年などで差が出ることもある）。色分けして確かめよう。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="7"># 勤続年数と時給の関係を、他社での経験の有無で色分けする
+misaki %>%
+  mutate(career = if_else(potential_exp > tenure, "他社での経験あり", "新卒で入社")) %>%
+  ggplot(aes(x = tenure, y = wage_hourly, color = career)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(title = "勤続年数と時給の関係", x = "勤続年数", y = "時給（円）", color = "経歴")</textarea></div>
+
+    <h3>男女で分けて表示する</h3>
+    <div class="prose"><p>年齢と時給の図に戻り、<code>aes()</code> の中で <code>color = sex, shape = sex</code> と指定して、性別によって点の色と形を変える。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5"># 年齢と時給の関係（男女別）
+ggplot(misaki, aes(x = age, y = wage_hourly, color = sex, shape = sex)) +
+  geom_point(size = 3) +
+  labs(title = "年齢と時給の関係（性別による違い）",
+       x = "年齢", y = "時給（円）", color = "性別", shape = "性別")</textarea></div>
+    <div class="note"><span class="label">テーマを変える</span>ここまでは最初に <code>theme_set()</code> で決めた <code>theme_minimal()</code> を使っている。ほかのテーマもあるので試してみよう。論文・レポートには <code>theme_bw()</code> や <code>theme_classic()</code>、Webやプレゼンには <code>theme_minimal()</code> や <code>theme_light()</code> が向いている。</div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5"># この図だけテーマを theme_bw() にする
+ggplot(misaki, aes(x = age, y = wage_hourly, color = sex, shape = sex)) +
+  geom_point(size = 3) +
+  labs(title = "年齢と時給の関係", x = "年齢", y = "時給（円）", color = "性別", shape = "性別") +
+  theme_bw(base_size = 13, base_family = "notosansjp")</textarea></div>
+  </section>
+
+  <!-- 6 -->
+  <section id="box">
+    <h2>6. グループを比べる：箱ひげ図</h2>
+    <div class="prose">
+      <p>グループごとの分布を比べるには<b>箱ひげ図</b>が便利。箱の中の線が<b>中央値</b>、箱の下端と上端が<b>第1四分位と第3四分位</b>（真ん中の半分の人がこの範囲に入る）、ひげは箱から離れすぎていない範囲の最小・最大を表す。ひげの外にある点は外れ値の候補。</p>
+      <p><code>geom_jitter()</code> を重ねると、1人ひとりの点を少しずつ左右にずらして表示できる。箱だけでは分からない人数や散らばりも見えるようになる。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="640x480"><textarea rows="5"># 性別ごとの時給の箱ひげ図
+ggplot(misaki, aes(x = sex, y = wage_hourly, fill = sex)) +
+  geom_boxplot(outlier.shape = NA) +            # 箱ひげ図（外れ値の点は次の行で描くので、ここでは描かない）
+  geom_jitter(width = 0.2, alpha = 0.6) +        # 1人ひとりの点を、重ならないように少しずらして表示
+  labs(title = "性別による時給の比較", x = "性別", y = "時給（円）", fill = "性別")</textarea></div>
+    <div class="quizbox"><span class="label">やってみよう</span>上のコードの <code>sex</code>（2か所）を <code>workstyle</code> に変えて、勤務形態ごとの時給を比べてみよう。<code>labs()</code> の文字も直しておく。</div>
+  </section>
+
+  <!-- 7 -->
+  <section id="adv">
+    <h2>7. 応用：分割・重ね合わせ・ヒートマップ</h2>
+    <h3>グループごとに図を分割する：<code>facet_wrap()</code></h3>
+    <div class="prose"><p>部署ごとの時給のヒストグラムを、部署別に並べて描く。<code>facet_wrap(~ 変数)</code> を足すと、その変数の値ごとに図を分割できる。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="820x580"><textarea rows="5">ggplot(misaki, aes(x = wage_hourly)) +
+  geom_histogram(binwidth = 500, fill = "orange", color = "black") +
+  facet_wrap(~ dept, ncol = 4) +                     # 部署ごとに図を分けて4列に並べる
+  labs(title = "部署ごとの時給の分布", x = "時給（円）", y = "人数")</textarea></div>
+
+    <h3>2つのカテゴリで同時に分けて比べる</h3>
+    <div class="prose"><p>時給を、勤務形態と性別という2つのカテゴリで同時に分けて比べる。横軸を勤務形態にし、<code>fill = sex</code> で男女の箱を並べる。箱ひげ図の応用である。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5">ggplot(misaki, aes(x = workstyle, y = wage_hourly, fill = sex)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +   # 勤務形態ごとに男女の箱を並べる
+  labs(title = "勤務形態・性別による時給の違い",
+       x = "勤務形態", y = "時給（円）", fill = "性別")</textarea></div>
+    <div class="quizbox"><span class="label">注意しよう</span>ハイブリッド勤務者には女性が多い（40人中20人。完全出社は80人中24人）。勤務形態だけで比べた差には、性別の違いによる部分が混ざっているかもしれない。男女それぞれの中で勤務形態を比べると、差はどう見えるだろうか。</div>
+
+    <h3>分布を重ねて比べる：密度プロット</h3>
+    <div class="prose"><p>ヒストグラムは区間の幅によって形が変わる。分布を滑らかな曲線（密度）で表す<b>密度プロット</b>は、複数のグループの分布を重ねて比べるのに向いている。<code>alpha</code> で半透明にすると、重なった部分も見える。縦軸の「密度」は、曲線の下の面積が1になるように描いた高さで、人数の多いグループと少ないグループの分布の形を同じ土俵で比べられる（ハイブリッド40人、完全出社80人）。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5"># 勤務形態ごとの時給の分布を、密度プロットで重ねる
+ggplot(misaki, aes(x = wage_hourly, fill = workstyle)) +
+  geom_density(alpha = 0.5) +                    # alpha で透明度を指定して、重ねても見えるようにする
+  labs(title = "勤務形態による時給分布の比較（密度プロット）",
+       x = "時給（円）", y = "密度", fill = "勤務形態")</textarea></div>
+    <div class="prose"><p>ヒストグラムを重ねることもできる（<code>position = "identity"</code> で棒を重ねる）。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="5"># 勤務形態ごとの時給のヒストグラムを重ねる
+ggplot(misaki, aes(x = wage_hourly, fill = workstyle)) +
+  geom_histogram(binwidth = 250, position = "identity", alpha = 0.6, color = "black") +
+  labs(title = "時給の分布：完全出社とハイブリッド勤務",
+       x = "時給（円）", y = "人数", fill = "勤務形態")</textarea></div>
+    <div class="quizbox"><span class="label">生成AIに聞いてみよう</span>重なっていると見にくいかもしれない。上下や左右に並べるにはどう書けばよいだろうか。生成AI（Geminiなど）に、上のコードを貼り付けて「勤務形態ごとに上下に分けて表示したい」と聞いてみよう。何をしたいかがはっきりしていれば、生成AIの支援はとても役に立つ。
+      <details class="shots"><summary>答えの例</summary><p><code>+ facet_wrap(~ workstyle, ncol = 1)</code> を足すと上下に分かれる。棒を横に並べるなら <code>position = "identity"</code> を <code>position = "dodge"</code> に変える。</p></details>
+    </div>
+
+    <h3>2つのカテゴリの組み合わせ：ヒートマップ</h3>
+    <div class="prose"><p>2つのカテゴリ変数を縦と横に並べたマス目（タイル）を作り、マス目ごとの値（平均・人数など）を色の濃さで表すのが<b>ヒートマップ</b>。部署と勤務形態の組み合わせごとに平均時給を計算して描く。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="800x440"><textarea rows="19"># 部署と勤務形態の組み合わせごとに、平均時給と人数を計算する
+df_summary <- misaki %>%
+  group_by(dept, workstyle) %>%
+  summarise(
+    mean_wage = mean(wage_hourly),   # 平均時給
+    n = n(),                         # 人数
+    .groups = "drop"
+  )
+print(df_summary)
+
+# ヒートマップを描く
+ggplot(df_summary, aes(x = dept, y = workstyle, fill = mean_wage)) +
+  geom_tile(color = "white", linewidth = 1) +                                  # マス目
+  geom_text(aes(label = paste0(round(mean_wage), "\n(", n, ")")), size = 4) +  # 平均時給（人数）
+  scale_fill_gradient(low = "lightblue", high = "red") +                       # 低いと水色、高いと赤
+  labs(title = "部署と勤務形態の組み合わせごとの平均時給",
+       x = "部署", y = "勤務形態", fill = "平均時給（円）") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))                     # 部署名を45度傾ける</textarea></div>
+    <div class="quizbox"><span class="label">図から読み取ろう</span>空白のマス目があるのはなぜだろうか（「2. 今日のデータ」の設定を思い出そう）。勤務形態による時給の違いを比べるなら、どの部署どうしを比べるのが公平だろうか。</div>
+  </section>
+
+  <!-- 8 -->
+  <section id="case">
+    <h2>8. 三崎実業の課題に図で取り組む</h2>
+    <div class="prose">
+      <p>前回の配布資料の図1〜図3を自分で描き、社長の「全員完全出社」の方針が会社の利益にどう影響するかを考える材料にする。まず、配布資料の「データの見方」にある3つの変数を作る。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki"><textarea rows="7"># 分析に使う変数を作る
+misaki <- misaki %>%
+  mutate(
+    ratio     = wage_hourly / productivity_hourly,   # 時給÷生産性（生んだ粗利のうち給与として払う割合）
+    profit    = productivity_hourly - wage_hourly,   # 会社が得る1時間あたりの利益（円）
+    commute_m = 2 * commute_oneway_min / 60          # 理論モデルの通勤時間 m（1日の往復、時間）
+  )</textarea></div>
+
+    <h3>図1 生産性と時給（勤務形態別）</h3>
+    <div class="prose">
+      <p><code>geom_smooth(method = "lm")</code> で、勤務形態ごとに近似線（回帰直線）を引く。<code>scale_x_log10()</code> と <code>scale_y_log10()</code> で両方の軸を<b>対数目盛</b>にすると、近似線は「対数をとった時給を、対数をとった生産性に回帰したもの」になる（配布資料と同じ）。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="760x520"><textarea rows="7">ggplot(misaki, aes(x = productivity_hourly, y = wage_hourly, color = workstyle, shape = workstyle)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +   # 勤務形態ごとの近似線
+  scale_x_log10() +                                           # 横軸を対数目盛にする
+  scale_y_log10() +                                           # 縦軸を対数目盛にする
+  labs(title = "図1 生産性と時給（勤務形態別）",
+       x = "生産性（円/時）", y = "時給（円）", color = "勤務形態", shape = "勤務形態")</textarea></div>
+    <div class="quizbox"><span class="label">議論のポイント（配布資料より）</span>
+      <ul>
+        <li>生産性が同じ社員どうしを比べると、どちらの勤務形態の時給が低いか（図を縦に見る）</li>
+        <li>時給が同じ社員どうしを比べると、どちらの勤務形態の生産性が高いか（図を横に見る）</li>
+      </ul>
+    </div>
+
+    <h3>図2 生産性と時給（男女別）</h3>
+    <div class="prose"><p>図1に <code>facet_wrap(~ sex)</code> を1行足すだけで、男女に分けた図になる。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="860x480"><textarea rows="8">ggplot(misaki, aes(x = productivity_hourly, y = wage_hourly, color = workstyle, shape = workstyle)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ sex) +                                         # 男女に分けて並べる
+  labs(title = "図2 生産性と時給（男女別）",
+       x = "生産性（円/時）", y = "時給（円）", color = "勤務形態", shape = "勤務形態")</textarea></div>
+    <div class="quizbox"><span class="label">議論のポイント</span>男性だけ、女性だけで見ても、図1と同じ差があるか。生産性が同じでも、男性と女性で時給の水準は違うか（男女間の賃金の差は、後の回でデータを使って分析する）。</div>
+
+    <h3>図3 通勤時間と「時給÷生産性」</h3>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="760x520"><textarea rows="6">ggplot(misaki, aes(x = commute_oneway_min, y = ratio, color = workstyle, shape = workstyle)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +   # 勤務形態ごとの回帰直線
+  labs(title = "図3 通勤時間と「時給÷生産性」",
+       x = "片道の通勤時間（分）", y = "時給÷生産性",
+       color = "勤務形態", shape = "勤務形態")</textarea></div>
+    <div class="quizbox"><span class="label">議論のポイント（配布資料より）</span>
+      <ul>
+        <li>完全出社の社員では、通勤時間と「時給÷生産性」にどんな関係があるか。ハイブリッド勤務の社員ではどうか</li>
+        <li>通勤時間が長い人ほど、低い時給でもハイブリッド勤務を受け入れてもよいと考えるのはなぜか。通勤にかかる時間が、社員にとってどれだけの価値を持つかを考えよう</li>
+      </ul>
+    </div>
+
+    <h3>会社が得る利益を比べる</h3>
+    <div class="prose"><p>会社が得る利益は、社員1人1時間あたり「生産性−時給」（<code>profit</code>）と考えてよい。勤務形態ごとに、数字と図の両方で比べる。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars"><textarea rows="9"># 勤務形態ごとの平均を表にする
+misaki %>%
+  group_by(workstyle) %>%
+  summarise(
+    n            = n(),                                 # 人数
+    wage         = round(mean(wage_hourly)),            # 平均時給
+    productivity = round(mean(productivity_hourly)),    # 平均生産性
+    ratio        = round(mean(ratio), 3),               # 時給÷生産性の平均
+    profit       = round(mean(profit))                  # 1時間あたり利益の平均
+  )</textarea></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="640x480"><textarea rows="5"># 勤務形態ごとの1時間あたり利益
+ggplot(misaki, aes(x = workstyle, y = profit, fill = workstyle)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  labs(title = "勤務形態ごとの1時間あたり利益", x = "勤務形態", y = "生産性−時給（円/時）") +
+  theme(legend.position = "none")                     # 横軸で分かるので凡例は消す</textarea></div>
+
+    <h3>同じ条件の人どうしで比べる</h3>
+    <div class="prose">
+      <p>ハイブリッド勤務を選べるのは4部署だけだった。選べない部署の社員まで含めて比べると、部署の違いが混ざってしまう。4部署だけに絞り（<code>filter()</code>）、部署ごとに分けて比べてみよう。</p>
+    </div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="860x480"><textarea rows="8"># ハイブリッド勤務を選べる4部署だけで、部署ごとに比べる
+misaki %>%
+  filter(dept %in% c("経営企画部", "財務経理部", "情報システム部", "海外事業部")) %>%
+  ggplot(aes(x = workstyle, y = ratio, fill = workstyle)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  facet_wrap(~ dept, nrow = 1) +
+  labs(title = "ハイブリッド勤務を選べる4部署での「時給÷生産性」", x = NULL, y = "時給÷生産性") +
+  theme(legend.position = "none")</textarea></div>
+
+    <h3>複数の変数をまとめて描く：<code>pivot_longer()</code></h3>
+    <div class="prose"><p>時給と生産性の分布を、勤務形態別に並べて見たい。2つの列（<code>wage_hourly</code> と <code>productivity_hourly</code>）を、「どの変数か」を表す列（<code>variable</code>）と「値」の列（<code>value</code>）の2列にまとめ直す（縦長のデータにする）と、<code>facet_wrap()</code> で変数ごとに分けて描ける。</p></div>
+    <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="860x440"><textarea rows="12"># 2つの列を、variable（変数名）と value（値）の2列にまとめ直す
+misaki_long <- misaki %>%
+  pivot_longer(cols = c(wage_hourly, productivity_hourly),
+               names_to = "variable", values_to = "value")
+
+ggplot(misaki_long, aes(x = value, fill = workstyle)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ variable, scales = "free",          # 変数ごとに分け、軸の範囲もそれぞれに合わせる
+             labeller = as_labeller(c(wage_hourly = "時給（円）",
+                                      productivity_hourly = "生産性（円/時）"))) +
+  labs(title = "時給と生産性の分布：勤務形態別", x = "値", y = "密度", fill = "勤務形態")</textarea></div>
+
+    <div class="quizbox"><span class="label">課題</span>「7. 応用」のヒートマップのコードを書き換えて、部署×勤務形態ごとの<b>「時給÷生産性」の平均</b>を表すヒートマップを描いてみよう。
+      <details class="shots"><summary>答えの例</summary>
+        <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="800x440"><textarea rows="10">df_ratio <- misaki %>%
+  group_by(dept, workstyle) %>%
+  summarise(mean_ratio = mean(ratio), n = n(), .groups = "drop")
+
+ggplot(df_ratio, aes(x = dept, y = workstyle, fill = mean_ratio)) +
+  geom_tile(color = "white", linewidth = 1) +
+  geom_text(aes(label = paste0(round(mean_ratio, 3), "\n(", n, ")")), size = 4) +
+  scale_fill_gradient(low = "lightyellow", high = "red") +
+  labs(title = "部署×勤務形態ごとの「時給÷生産性」", x = "部署", y = "勤務形態", fill = "時給÷生産性") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))</textarea></div>
+      </details>
+    </div>
+
+    <div class="warnbox"><span class="label">経営会議への報告を考えよう</span>
+      <ul>
+        <li>社長の方針どおり全員を完全出社にしたら、ハイブリッド勤務の社員はどう行動するだろうか。会社は同じ社員に残ってもらうために、何をする必要があるか</li>
+        <li>そのとき、会社が得る利益（生産性−時給）はどう変わりそうか。特に、通勤時間が長い社員について考えよう</li>
+        <li>今日描いた図の中から、社長を説得するのに最も役立つ図を1枚選び、その図から何が言えるかを3行で説明してみよう</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="save">
+    <h2>9. 図を保存する</h2>
+    <div class="prose">
+      <p>レポートやスライドに図を使うときは、画像ファイルとして保存する。いちばん簡単なのは、RStudioの右下の <b>Plots</b> タブの <b>Export</b> → <b>Save as Image…</b> を使う方法。コードで保存するなら <code>ggsave()</code> を使う（直前に描いた図が、作業ディレクトリに保存される）。</p>
+    </div>
+    <div class="code" data-where="RStudioで実行" data-local="1"><textarea rows="4"># 直前に描いた図を、幅7インチ・高さ5インチ・解像度300dpiのPNGファイルとして保存する
+showtext_opts(dpi = 300)    # showtext を使っているときは、保存する解像度を合わせておく（文字が小さくなるのを防ぐ）
+ggsave("figure1.png", width = 7, height = 5, dpi = 300)
+showtext_opts(dpi = 96)     # RStudioの画面表示用に戻す</textarea></div>
+  </section>
+
+  <!-- 10 -->
+  <section id="summary">
+    <h2>10. まとめと次回予告</h2>
+    <div class="tablewrap">
+      <table class="vars">
+        <thead><tr><th>やりたいこと</th><th>関数</th></tr></thead>
+        <tbody>
+          <tr><td>図の土台を作る</td><td><code>ggplot(データ, aes(x = , y = ))</code></td></tr>
+          <tr><td>棒グラフ（人数／値そのもの）</td><td><code>geom_bar()</code>　<code>geom_col()</code></td></tr>
+          <tr><td>ヒストグラム・密度プロット</td><td><code>geom_histogram()</code>　<code>geom_density()</code></td></tr>
+          <tr><td>散布図・近似線</td><td><code>geom_point()</code>　<code>geom_smooth(method = "lm")</code></td></tr>
+          <tr><td>箱ひげ図と個々の点</td><td><code>geom_boxplot()</code>　<code>geom_jitter()</code></td></tr>
+          <tr><td>ヒートマップ</td><td><code>geom_tile()</code>　<code>geom_text()</code></td></tr>
+          <tr><td>グループで色・形を変える</td><td><code>aes()</code> の中で <code>color =</code>　<code>fill =</code>　<code>shape =</code></td></tr>
+          <tr><td>図を分割する</td><td><code>facet_wrap(~ 変数)</code></td></tr>
+          <tr><td>対数目盛</td><td><code>scale_x_log10()</code>　<code>scale_y_log10()</code></td></tr>
+          <tr><td>タイトル・軸の名前、見た目</td><td><code>labs()</code>　<code>theme_set()</code>　<code>theme()</code></td></tr>
+          <tr><td>データの加工</td><td><code>mutate()</code>　<code>filter()</code>　<code>group_by()</code> と <code>summarise()</code>　<code>pivot_longer()</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p>次回は<b>ミンサー型賃金関数</b>を扱う。今日の図1で使った「対数をとった時給」が、学歴や経験年数によってどう決まるかを、回帰分析で調べる。今日のRスクリプトは次回も使うので保存しておくこと。</p>
+    </div>
+  </section>
+
+  <footer>
+    作成：安藤至大（日本大学経済学部）。三崎実業株式会社は架空の会社で、データも架空のものです。ブラウザでの実行には <a href="https://docs.r-wasm.org/webr/" target="_blank" rel="noopener">webR</a> を使っています（初回のみR本体とパッケージを読み込みます。入力したコードや結果はこのブラウザの中だけで処理され、外部には送信されません）。
+  </footer>
+</main>
+
+<script type="module">
+const WEBR_URL = 'https://webr.r-wasm.org/v0.6.0/webr.mjs';
+
+/* ---------- 状態表示 ---------- */
+const statusEl = document.getElementById('rstatus');
+const statusText = document.getElementById('rstatus-text');
+const btnStart = document.getElementById('btn-start');
+const btnRestart = document.getElementById('btn-restart');
+function setStatus(phase, text) {
+  statusEl.dataset.phase = phase;
+  statusText.textContent = text;
+  btnStart.hidden = phase !== 'idle' && phase !== 'failed';
+  btnRestart.hidden = phase === 'idle' || phase === 'starting';
+}
+
+/* ---------- R 側の準備用コード ---------- */
+const R_SETUP = String.raw`
+local({
+  e <- new.env()
+  e$View <- function(x, title) {
+    if (missing(title)) title <- deparse(substitute(x))[1]
+    assign(".lec_view", list(x = x, title = title), envir = globalenv())
+    invisible(NULL)
+  }
+  e$lec_help <- function(topic) {
+    pk <- sub("^package:", "", grep("^package:", find(topic), value = TRUE))
+    files <- character(0)
+    for (p in pk) {
+      files <- as.character(do.call(utils::help, list(topic, package = p)))
+      if (length(files)) break
+    }
+    if (!length(files)) files <- as.character(do.call(utils::help, list(topic)))
+    if (!length(files)) {
+      cat("「", topic, "」のヘルプが見つかりませんでした。綴りと、library() でパッケージを読み込んだかを確認してください。\n", sep = "")
+      return(invisible(NULL))
+    }
+    cat("\003（ブラウザ版ではここに表示します。RStudioでは右下の Help タブに表示されます）\n")
+    tools::Rd2txt(utils:::.getHelpFile(files[1]), options = list(underline_titles = FALSE))
+    invisible(NULL)
+  }
+  e$"?" <- function(e1, e2) {
+    topic <- if (missing(e2)) deparse(substitute(e1)) else deparse(substitute(e2))
+    e$lec_help(gsub("^[\"'\x60]|[\"'\x60]$", "", topic))
+  }
+  e$help <- function(topic, ...) {
+    if (missing(topic)) { cat("help(調べたい名前) のように使います\n"); return(invisible(NULL)) }
+    topic <- deparse(substitute(topic))
+    e$lec_help(gsub("^[\"'\x60]|[\"'\x60]$", "", topic))
+  }
+  # showtext（日本語フォント）はブラウザ版では不要：ブラウザのフォントでそのまま日本語が表示される
+  e$library <- function(package, ..., character.only = FALSE) {
+    if (missing(package)) return(base::library())
+    p <- if (character.only) package else as.character(substitute(package))
+    if (p %in% c("showtext", "sysfonts")) {
+      cat("\003（ブラウザ版）", p, " はブラウザ版では使わないので、読み込みを省略しました。日本語はそのまま表示されます\n", sep = "")
+      return(invisible(NULL))
+    }
+    base::library(p, character.only = TRUE, ...)
+  }
+  e$font_add_google <- function(...) {
+    cat("\003（ブラウザ版）フォントの取り込みは省略しました。RStudioではここでGoogle Fontsからフォントを取り込みます\n")
+    invisible(NULL)
+  }
+  e$showtext_auto <- function(...) invisible(NULL)
+  e$showtext_opts <- function(...) invisible(NULL)
+  e$install.packages <- function(pkgs, ...) {
+    need <- pkgs[!nzchar(vapply(pkgs, function(p) system.file(package = p), ""))]
+    need <- setdiff(need, c("showtext", "sysfonts"))
+    if (length(need)) webr::install(need, quiet = TRUE)
+    cat("\003（ブラウザ版）", paste(pkgs, collapse = ", "), " を使える状態にしました。RStudioでは、ここでダウンロードとインストールが行われます\n", sep = "")
+    invisible(NULL)
+  }
+  e$lec_run <- function(code) {
+    exprs <- tryCatch(parse(text = code, keep.source = TRUE), error = function(err) err)
+    if (inherits(exprs, "error")) {
+      cat("Error: ", conditionMessage(exprs), "\n", sep = "", file = stderr())
+      return(invisible(NULL))
+    }
+    srcs <- attr(exprs, "srcref")
+    lines <- strsplit(code, "\n", fixed = TRUE)[[1]]
+    prev <- 0L
+    for (i in seq_along(exprs)) {
+      if (!is.null(srcs)) {
+        f <- srcs[[i]][1]; last <- srcs[[i]][3]
+        if (f > prev) {
+          pre <- if (f > prev + 1L) lines[(prev + 1L):(f - 1L)] else character(0)
+          pre <- pre[nzchar(trimws(pre))]
+          if (length(pre)) cat(paste0("\001> ", pre), sep = "\n")
+          src <- lines[f:last]
+          cat(paste0("\001", c("> ", rep("+ ", length(src) - 1)), src), sep = "\n")
+        }
+        prev <- max(prev, last)
+      } else {
+        src <- deparse(exprs[[i]])
+        cat(paste0("\001", c("> ", rep("+ ", length(src) - 1)), src), sep = "\n")
+      }
+      ok <- tryCatch({
+        r <- withVisible(eval(exprs[[i]], globalenv()))
+        if (r$visible) print(r$value)
+        TRUE
+      }, error = function(err) {
+        cl <- conditionCall(err)
+        head <- if (is.null(cl)) "Error: " else paste0("Error in ", deparse(cl, nlines = 1), " : ")
+        cat(head, conditionMessage(err), "\n", sep = "", file = stderr())
+        FALSE
+      })
+      if (!ok) break
+    }
+    invisible(NULL)
+  }
+  e$lec_run_svg <- function(code, width, height) {
+    s <- svglite::svgstring(width = width, height = height, pointsize = 12, standalone = TRUE)
+    id <- grDevices::dev.cur()
+    on.exit(if (id %in% grDevices::dev.list()) grDevices::dev.off(id))
+    e$lec_run(code)
+    if (id %in% grDevices::dev.list()) grDevices::dev.off(id)
+    on.exit()
+    out <- s()
+    out[nzchar(out)]
+  }
+  e$lec_view_tsv <- function() {
+    if (!exists(".lec_view", envir = globalenv(), inherits = FALSE)) return("")
+    v <- get(".lec_view", envir = globalenv())
+    rm(".lec_view", envir = globalenv())
+    d <- as.data.frame(v$x)
+    n <- nrow(d)
+    d <- utils::head(d, 1000)
+    m <- as.matrix(format(d))
+    m[] <- gsub("[\t\n]", " ", trimws(m))
+    paste(c(paste(v$title, n, ncol(d), sep = "\t"),
+            paste(c("", names(d)), collapse = "\t"),
+            paste(seq_len(nrow(m)), apply(m, 1, paste, collapse = "\t"), sep = "\t")),
+          collapse = "\n")
+  }
+  attach(e, name = "lecture_tools", warn.conflicts = FALSE)
+})
+options(width = 80, warn = 1)
+`;
+
+/* ---------- webR の起動と実行 ---------- */
+const DATA_FILE = 'misaki_employees.csv';
+const DATA_URL = 'https://munetomoando.github.io/labor24/' + DATA_FILE;
+async function fetchData() {
+  for (const u of [DATA_FILE, DATA_URL]) {
+    try {
+      const r = await fetch(u, { cache: 'no-cache' });
+      if (r.ok) return new Uint8Array(await r.arrayBuffer());
+    } catch (_) {}
+  }
+  return null;
+}
+
+let webR = null, starting = null, ChannelType = null, WebRClass = null;
+// 図の取り込み方。canvas 方式が使えない・失敗した場合は svglite（SVG）方式に切り替える
+let graphicsMode = (typeof OffscreenCanvas === 'undefined') ? 'svg' : 'canvas';
+const installed = new Set();
+let queue = Promise.resolve();
+function serial(fn) { const p = queue.then(fn, fn); queue = p.catch(() => {}); return p; }
+
+async function startR() {
+  if (webR) return webR;
+  if (starting) return starting;
+  setStatus('starting', 'ブラウザ版R：起動中…（初回は数十秒かかります）');
+  starting = (async () => {
+    if (!WebRClass) {
+      const m = await import(WEBR_URL);
+      WebRClass = m.WebR; ChannelType = m.ChannelType;
+    }
+    const w = new WebRClass({ channelType: ChannelType.PostMessage, interactive: false });
+    await w.init();
+    await w.evalRVoid(R_SETUP);
+    // 三崎実業のデータを、ブラウザ版Rの作業ディレクトリに置いておく（RStudioで作業ディレクトリに置いたのと同じ状態にする）
+    const csv = await fetchData();
+    if (csv) await w.FS.writeFile('/home/web_user/' + DATA_FILE, csv);
+    webR = w;
+    setStatus('ready', 'ブラウザ版R：準備完了');
+    return w;
+  })();
+  starting.catch((e) => {
+    starting = null;
+    setStatus('failed', 'ブラウザ版R：起動できませんでした（' + (e?.message ?? e) + '）');
+  });
+  return starting;
+}
+
+async function restartR() {
+  try { webR?.close(); } catch (_) {}
+  webR = null; starting = null; installed.clear(); queue = Promise.resolve();
+  await startR();
+}
+
+function detectPackages(code) {
+  const pk = new Set();
+  const lib = /\b(?:library|require)\(\s*["']?([A-Za-z][A-Za-z0-9.]*)["']?/g;
+  let m; while ((m = lib.exec(code))) pk.add(m[1]);
+  const ins = /install\.packages\(([^)]*)\)/g;
+  while ((m = ins.exec(code))) for (const q of m[1].matchAll(/["']([A-Za-z][A-Za-z0-9.]*)["']/g)) pk.add(q[1]);
+  ['showtext', 'sysfonts'].forEach((p) => pk.delete(p));   // ブラウザ版では使わない
+  return [...pk];
+}
+
+async function ensurePackages(w, pkgs) {
+  const todo = [];
+  for (const p of pkgs) {
+    if (installed.has(p)) continue;
+    const has = await w.evalRString(`nzchar(system.file(package = "${p}")) |> as.character()`);
+    if (has === 'TRUE') installed.add(p); else todo.push(p);
+  }
+  if (!todo.length) return;
+  setStatus('busy', `ブラウザ版R：パッケージを読み込み中（${todo.join(', ')}）…`);
+  await w.installPackages(todo, { quiet: true, mount: true });
+  todo.forEach((p) => installed.add(p));
+}
+
+async function condText(o) {
+  try { const msg = await o.data.get('message'); return (await msg.toArray()).join(''); }
+  catch (_) { return String(o.data); }
+}
+
+// ブロックの前提（先に実行していなくても、ブラウザ版では自動で用意する）
+// need：TRUE のとき前提が満たされていない、code：そのとき実行するコード、label：利用者に見せる説明
+const PRE = {
+  misaki: {
+    need: '!exists("misaki", envir = globalenv(), inherits = FALSE)',
+    code: 'misaki <- readr::read_csv("misaki_employees.csv", show_col_types = FALSE)',
+    label: 'misaki <- read_csv("misaki_employees.csv")',
+  },
+  vars: {
+    need: '!all(c("ratio", "profit", "commute_m") %in% names(misaki))',
+    code: 'misaki <- dplyr::mutate(misaki, ratio = wage_hourly / productivity_hourly, profit = productivity_hourly - wage_hourly, commute_m = 2 * commute_oneway_min / 60)',
+    label: '「8.」の最初のコード（ratio・profit・commute_m を作る）',
+  },
+  theme: {
+    need: 'local({ t <- ggplot2::theme_get(); identical(t$text$family, "") && identical(t$text$size, 11) })',
+    code: 'ggplot2::theme_set(ggplot2::theme_minimal(base_size = 13, base_family = "notosansjp"))',
+    label: 'theme_set(theme_minimal(base_size = 13, base_family = "notosansjp"))',
+  },
+};
+
+function runCode(code, needs, plot, pre = []) {
+  return serial(async () => {
+    const w = await startR();
+    const notes = [];
+    try {
+      await ensurePackages(w, [...new Set([...needs, ...detectPackages(code)])]);
+      // このブロックの前提（データ・変数・図のテーマ）が未実行なら、先に用意しておく
+      for (const v of pre) {
+        const p = PRE[v]; if (!p) continue;
+        const need = await w.evalRString(`isTRUE(${p.need}) |> as.character()`);
+        if (need === 'TRUE') {
+          await w.evalRVoid(p.code);
+          notes.push(`（前提として ${p.label} を実行しました）`);
+        }
+      }
+      for (const p of needs) {
+        const att = await w.evalRString(`("package:${p}" %in% search()) |> as.character()`);
+        if (att !== 'TRUE' && !new RegExp(`library\\(\\s*["']?${p.replace('.', '\\.')}`).test(code)) {
+          await w.evalRVoid(`suppressPackageStartupMessages(library("${p}", character.only = TRUE))`);
+          notes.push(`（前提として library(${p}) を実行しました）`);
+        }
+      }
+    } catch (e) {
+      return { lines: [{ type: 'error', text: 'パッケージを読み込めませんでした：' + (e?.message ?? e) }], images: [], svgs: [], view: '', notes, fatal: true };
+    }
+    setStatus('busy', 'ブラウザ版R：実行中…');
+    await w.objs.globalEnv.bind('.lec_code', code);
+    const shelter = await new w.Shelter();
+    const opts = { withAutoprint: false, captureStreams: true, captureConditions: true };
+    try {
+      let cap = null, images = [], svgs = [];
+      if (graphicsMode === 'canvas') {
+        try {
+          cap = await shelter.captureR('lec_run(.lec_code)', {
+            ...opts, captureGraphics: { width: plot[0], height: plot[1], pointsize: 14, bg: 'white' },
+          });
+          images = cap.images;
+        } catch (e) {
+          console.warn('canvas 方式で失敗したため SVG 方式に切り替えます', e);
+          graphicsMode = 'svg';
+          cap = null;
+        }
+      }
+      if (!cap) {
+        try {
+          await ensurePackages(w, ['svglite']);
+          setStatus('busy', 'ブラウザ版R：実行中…');
+          cap = await shelter.captureR(`lec_run_svg(.lec_code, ${plot[0] / 96}, ${plot[1] / 96})`, { ...opts, captureGraphics: false });
+          svgs = await cap.result.toArray();
+        } catch (e) {
+          return { lines: [{ type: 'error', text: 'このブラウザではRを実行できませんでした（' + (e?.name ? e.name + ': ' : '') + (e?.message ?? e) + '）' }],
+                   images: [], svgs: [], view: '', notes, fatal: true };
+        }
+      }
+      const lines = [];
+      for (const o of cap.output) {
+        if (o.type === 'stdout' || o.type === 'stderr') lines.push({ type: o.type, text: String(o.data) });
+        else lines.push({ type: o.type, text: (await condText(o)).replace(/\n$/, '') });
+      }
+      const view = await w.evalRString('lec_view_tsv()');
+      return { lines, images, svgs, view, notes };
+    } catch (e) {
+      return { lines: [{ type: 'error', text: String(e?.message ?? e) }], images: [], svgs: [], view: '', notes, fatal: true };
+    } finally {
+      await shelter.purge();
+      await w.evalRVoid('rm(list = intersect(".lec_code", ls(globalenv(), all.names = TRUE)), envir = globalenv())').catch(() => {});
+      setStatus('ready', 'ブラウザ版R：準備完了');
+    }
+  });
+}
+
+/* ---------- エラーの手がかり ---------- */
+function hintFor(t) {
+  let m;
+  if ((m = /could not find function ["“]([^"”]+)["”]/.exec(t))) {
+    let s = `関数「${m[1]}」が見つかりません。綴り（大文字・小文字も区別されます）を確認し、その関数を含むパッケージを library() で読み込んだか確認しましょう。`;
+    if (/^(ggplot|%>%|read_csv|mutate|summarise|group_by|filter|pivot_longer|glimpse|aes)$/.test(m[1])) s += ' この関数は tidyverse に入っています。library(tidyverse) を先に実行しましょう。';
+    return s;
+  }
+  if ((m = /object ['‘]([^'’]+)['’] not found/.exec(t))) {
+    let s = `「${m[1]}」という名前のデータや変数が見つかりません。綴りを確認し、それを作る行を先に実行したか確認しましょう。`;
+    if (m[1] === 'misaki') s += ' 「3. データを読み込む」の read_csv() の行を先に実行しましょう。';
+    if (/^(ratio|profit|commute_m)$/.test(m[1])) s += ' 「8.」の最初のコード（mutate で ratio・profit・commute_m を作る）を先に実行しましょう。';
+    return s;
+  }
+  if (/does not exist in current working directory|cannot open file|No such file/.test(t))
+    return 'ファイルが見つかりません。作業ディレクトリ（Files タブの歯車 → Set As Working Directory）が、misaki_employees.csv を置いたフォルダになっているか確認しましょう。うまくいかなければ、コメントにある Web 上のファイルを読み込む行を使いましょう。';
+  if (/font family/.test(t))
+    return '日本語フォントが登録されていません。「3.」の日本語の設定のコードを先に実行しましょう。';
+  if ((m = /there is no package called ['‘]([^'’]+)['’]/.exec(t)))
+    return `パッケージ「${m[1]}」がインストールされていません。先に install.packages("${m[1]}") を実行しましょう。`;
+  if (/unexpected/.test(t))
+    return '書き方の誤りです。括弧「(」「)」の数、引用符「"」の閉じ忘れ、カンマの過不足、全角文字（全角スペースや全角の括弧）が混ざっていないかを確認しましょう。';
+  if (/Unicode|invalid multibyte|\\u3000/.test(t))
+    return '全角文字が混ざっている可能性があります。全角スペースや全角の記号を半角に直しましょう。';
+  return '';
+}
+
+/* ---------- 表示 ---------- */
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function renderView(tsv) {
+  const rows = tsv.split('\n');
+  const [title, n, k] = rows[0].split('\t');
+  const box = el('div', 'viewer');
+  box.append(el('div', 'vt', `View(${title})：${n}行 × ${k}列` + (Number(n) > 1000 ? '（先頭1000行を表示）' : '') + '　※RStudioでは左上に表示されます'));
+  const sc = el('div', 'scroll'); sc.tabIndex = 0;
+  const table = el('table');
+  const thead = el('thead'); const trh = el('tr');
+  rows[1].split('\t').forEach((h) => trh.append(el('th', null, h)));
+  thead.append(trh); table.append(thead);
+  const tb = el('tbody');
+  for (const r of rows.slice(2)) { const tr = el('tr'); r.split('\t').forEach((c) => tr.append(el('td', null, c))); tb.append(tr); }
+  table.append(tb); sc.append(table); box.append(sc);
+  return box;
+}
+
+function renderResult(out, res) {
+  out.replaceChildren();
+  const pre = el('pre');
+  const add = (cls, text) => { pre.append(el('span', cls, text + '\n')); };
+  for (const n of res.notes) add('note-line', n);
+  const hints = new Set();
+  for (const ln of res.lines) {
+    if (ln.type === 'stderr' || ln.type === 'error') { const h = hintFor(ln.text); if (h) hints.add(h); }
+    const parts = ln.text.replace(/\n$/, '').split('\n');
+    parts.forEach((p, j) => {
+      if (p.startsWith('\u0001')) add('echo', p.slice(1));
+      else if (p.startsWith('\u0003')) add('note-line', p.slice(1));
+      else if (ln.type === 'stdout') add('', p);
+      else if (ln.type === 'warning') add('warn', (j === 0 ? 'Warning: ' : '') + p);
+      else if (ln.type === 'message') add('msg', p);
+      else add('err', p);
+    });
+  }
+  out.append(pre);
+  for (const h of hints) out.append(el('div', 'hint', '💡 ' + h));
+  if (res.view) out.append(renderView(res.view));
+  for (const svg of res.svgs || []) {
+    const im = document.createElement('img');
+    im.className = 'plot'; im.alt = 'Rで描いた図';
+    im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    out.append(im);
+  }
+  if (res.fatal) {
+    out.append(el('div', 'hint', location.protocol === 'file:'
+      ? '💡 このページをファイルとして直接開いているため、ブラウザ版Rが動かない可能性があります。授業のWebページ（URL）から開き直してください。それでも動かない場合は、Google Chrome か Microsoft Edge で開いてください。'
+      : '💡 ページを再読み込みしてもう一度試してください。それでも動かない場合は、Google Chrome か Microsoft Edge で開いてください。'));
+  }
+  for (const img of res.images) {
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', 'Rで描いた図');
+    out.append(c);
+  }
+  const tools = el('div', 'out-tools');
+  const clear = el('button', 'btn', '結果を消す'); clear.type = 'button';
+  clear.addEventListener('click', () => { out.hidden = true; out.replaceChildren(); });
+  tools.append(clear); out.append(tools);
+}
+
+/* ---------- コードブロックの組み立て ---------- */
+function autosize(ta) { ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px'; }
+
+async function copyText(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; }
+  catch (_) {
+    const t = document.createElement('textarea'); t.value = text; document.body.append(t); t.select();
+    try { ok = document.execCommand('copy'); } catch (_) {} t.remove();
+  }
+  const old = btn.textContent; btn.textContent = ok ? 'コピーしました' : 'コピーできませんでした';
+  setTimeout(() => { btn.textContent = old; }, 1500);
+}
+
+document.querySelectorAll('.code').forEach((block) => {
+  const ta = block.querySelector('textarea');
+  ta.spellcheck = false; ta.setAttribute('autocapitalize', 'off'); ta.setAttribute('autocomplete', 'off');
+  ta.setAttribute('aria-label', 'Rのコード（編集できます）');
+  const original = ta.value;
+  const bar = el('div', 'code-bar');
+  bar.append(el('span', 'where', block.dataset.where || 'R'));
+  const reset = el('button', 'btn', '元に戻す'); reset.type = 'button'; reset.hidden = true;
+  const copy = el('button', 'btn copy', 'コピー'); copy.type = 'button';
+  const run = el('button', 'btn run', '▶ ブラウザで実行'); run.type = 'button';
+  bar.append(reset, copy, run);
+  if (block.dataset.local) run.hidden = true;   // RStudio でだけ意味のあるコード
+  block.prepend(bar);
+  const out = el('div', 'out'); out.hidden = true; out.setAttribute('aria-live', 'polite');
+  block.append(out);
+  const needs = (block.dataset.needs || '').split(/\s+/).filter(Boolean);
+  const pre = (block.dataset.pre || '').split(/\s+/).filter(Boolean);
+  const plot = (block.dataset.plot || '720x480').split('x').map(Number);
+
+  ta.addEventListener('input', () => { autosize(ta); reset.hidden = ta.value === original; });
+  reset.addEventListener('click', () => { ta.value = original; autosize(ta); reset.hidden = true; });
+  copy.addEventListener('click', () => copyText(ta.value, copy));
+
+  async function doRun() {
+    run.disabled = true;
+    out.hidden = false;
+    out.replaceChildren(el('div', 'running', webR ? '実行中…' : 'ブラウザ版Rを起動しています…（初回は数十秒かかります）'));
+    try {
+      const res = await runCode(ta.value, needs, plot, pre);
+      renderResult(out, res);
+    } catch (e) {
+      out.replaceChildren(el('pre', 'err', 'ブラウザ版Rを起動できませんでした：' + (e?.message ?? e) + '\n通信環境を確認して、ページを再読み込みしてください。'));
+    } finally { run.disabled = false; }
+  }
+  run.addEventListener('click', doRun);
+  ta.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); doRun(); }
+    else if (ev.key === 'Tab' && !ev.shiftKey && !ev.altKey) {
+      ev.preventDefault();
+      const s = ta.selectionStart, e2 = ta.selectionEnd;
+      ta.setRangeText('  ', s, e2, 'end'); ta.dispatchEvent(new Event('input'));
+    }
+  });
+  requestAnimationFrame(() => autosize(ta));
+});
+
+if (location.protocol === 'file:') document.getElementById('filenote').hidden = false;
+
+btnStart.addEventListener('click', () => { startR().catch(() => {}); });
+btnRestart.addEventListener('click', () => {
+  document.querySelectorAll('.out').forEach((o) => { o.hidden = true; o.replaceChildren(); });
+  restartR().catch(() => {});
+});
+
+/* 読み込めなかった画像は案内に差し替える */
+document.querySelectorAll('figure img').forEach((img) => {
+  img.addEventListener('error', () => {
+    const d = el('div', 'img-missing', '（画像を読み込めませんでした：' + (img.alt || '') + '）');
+    img.replaceWith(d);
+  }, { once: true });
+});
+</script>
+</body>
+</html>
