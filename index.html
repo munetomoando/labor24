@@ -269,7 +269,7 @@ footer { margin-top: 64px; color: var(--muted); font-size: 14px; border-top: 2px
       </ul>
       <p>前回は配布資料の図を見て議論した。今日は、その図を<b>自分で描く</b>ところまで進む。</p>
     </div>
-    <div class="note"><span class="label">データのファイル</span>配布した <code>misaki_employees.csv</code> を使う。手元にない人は <a href="misaki_employees.csv" download>ここからダウンロード</a> し、今日のRスクリプトと同じフォルダに保存しておく。</div>
+    <div class="note"><span class="label">データのファイル</span><ul><li><b>RStudioで進める人：</b>配布した <code>misaki_employees.csv</code> を使う。手元にない人は <a href="misaki_employees.csv" download>ここからダウンロード</a> し、今日のRスクリプトと同じフォルダに保存しておく</li><li><b>ブラウザ版（▶ ブラウザで実行）で進める人：</b>ダウンロードは不要。データはこのページが自動で用意する</li></ul></div>
     <div class="tablewrap">
       <table class="vars">
         <thead><tr><th>変数名</th><th>内容</th></tr></thead>
@@ -306,7 +306,7 @@ install.packages("showtext")    # 図の中に日本語を表示するための�
 
     <h3>データを読み込む</h3>
     <div class="prose">
-      <p>まず、Rがファイルを探す場所（<b>作業ディレクトリ</b>、working directory）を、<code>misaki_employees.csv</code> を置いたフォルダにする。</p>
+      <p>まず、Rがファイルを探す場所（<b>作業ディレクトリ</b>、working directory）を、<code>misaki_employees.csv</code> を置いたフォルダにする（ブラウザ版の人はこの手順は不要で、下のコードをそのまま実行すればよい）。</p>
     </div>
     <ol class="steps">
       <li>RStudioの右下の <b>Files</b> タブで、<code>misaki_employees.csv</code> を置いたフォルダまで移動する</li>
