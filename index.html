@@ -244,7 +244,7 @@ footer { margin-top: 64px; color: var(--muted); font-size: 14px; border-top: 2px
       <li class="tocpart">応用</li>
       <li><a href="#adv">分割・重ね合わせ・ヒートマップ</a></li>
       <li><a href="#case">三崎実業の課題に図で取り組む</a></li>
-      <li><a href="#submit">課題の提出（出席確認）</a></li>
+      <li><a href="#submit">課題の提出</a></li>
       <li><a href="#save">図を保存する</a></li>
       <li><a href="#summary">まとめと次回予告</a></li>
     </ol>
@@ -670,7 +670,7 @@ ggplot(df_ratio, aes(x = dept, y = workstyle, fill = mean_ratio)) +
 
   <!-- 9 -->
   <section id="submit">
-    <h2>9. 課題の提出（出席確認）</h2>
+    <h2>9. 課題の提出</h2>
     <div class="prose">
       <p>今日描いた図の中から、<b>社長を説得するのに最も役立つ図を1枚選び、その図から何が言えるかを3行で説明</b>して、下の欄から提出する。この提出で出席を確認する。</p>
     </div>
@@ -684,7 +684,7 @@ ggplot(df_ratio, aes(x = dept, y = workstyle, fill = mean_ratio)) +
     </div>
     <form class="submitform" id="submitform" novalidate>
       <div class="sf-row">
-        <label for="sf-id">学籍番号</label>
+        <label for="sf-id">学生番号</label>
         <input id="sf-id" name="id" type="text" autocomplete="off" maxlength="20" required>
       </div>
       <div class="sf-row">
