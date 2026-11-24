@@ -361,20 +361,24 @@ ggplot(misaki, aes(x = dept, fill = workstyle)) +
     <h3>並び順を指定する</h3>
     <div class="prose"><p>文字のデータは、そのままだと文字コードの順に並ぶ。学歴なら教育年数の短い順に並べたい。<code>factor()</code> で順番（levels）を指定する。</p></div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="720x440"><textarea rows="8"># 学歴を、教育年数の短い順に並べる
-misaki <- misaki %>%
+misaki <- misaki |>
   mutate(educ_level = factor(educ_level, levels = c("高校", "短大・高専・専門", "大学", "大学院")))
 
 ggplot(misaki, aes(x = educ_level)) +
   geom_bar(fill = "lightgreen", color = "black") +
   labs(title = "学歴別の人数", x = "最終学歴", y = "人数")</textarea></div>
-    <div class="note"><span class="label"><code>%>%</code>（パイプ）とは</span><code>A %>% B</code> は「Aを、次のBに渡す」という意味。<code>misaki %>% mutate(…)</code> は「misakiのデータに、mutate（列を作る・作り直す）を行う」と読む。手順を上から順に書けるので読みやすい。</div>
+    <div class="note"><span class="label"><code>|&gt;</code>（パイプ）とは</span><code>A |&gt; B</code> は「Aを、次のBに渡す」という意味。<code>misaki |&gt; mutate(…)</code> は「misakiのデータに、mutate（列を作る・作り直す）を行う」と読む。手順を上から順に書けるので読みやすい。
+      <ul>
+        <li><code>|&gt;</code> はR 4.1以降に標準で入っているパイプで、パッケージなしで使える。RStudioでは <span class="kbd">Ctrl</span>＋<span class="kbd">Shift</span>＋<span class="kbd">M</span>（Macは <span class="kbd">⌘</span>＋<span class="kbd">Shift</span>＋<span class="kbd">M</span>）で入力できる。<code>|&gt;</code> が入るようにするには、Tools → Global Options → Code で「Use native pipe operator, |&gt;」にチェックを入れる</li>
+        <li>Webの解説記事や生成AIの答えでは、同じ働きをする <code>%&gt;%</code>（tidyverseに入っている古くからのパイプ）をよく見かける。今日のコードの範囲では、どちらを使っても結果は同じ</li>
+      </ul></div>
 
     <h3>棒グラフ：カテゴリごとの平均</h3>
     <div class="prose"><p>棒の長さで平均を表すこともできる。先に <code>group_by()</code> と <code>summarise()</code> で部署ごとの平均時給を計算し、その値をそのまま棒の長さにする（<code>geom_col()</code>）。</p></div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="760x460"><textarea rows="7"># 部署別の平均時給
-misaki %>%
-  group_by(dept) %>%                                 # 部署ごとに
-  summarise(mean_wage = mean(wage_hourly)) %>%       # 時給の平均を計算して
+misaki |>
+  group_by(dept) |>                                 # 部署ごとに
+  summarise(mean_wage = mean(wage_hourly)) |>       # 時給の平均を計算して
   ggplot(aes(x = dept, y = mean_wage)) +             # 図にする
   geom_col(fill = "skyblue", color = "black") +      # 値をそのまま棒の長さにする
   labs(title = "部署別の平均時給", x = "部署", y = "平均時給（円）") +
@@ -412,8 +416,8 @@ ggplot(misaki, aes(x = age, y = wage_hourly)) +
       <p>ヒントは<b>潜在経験年数</b>（学校を出てから働いてきた年数の目安）。潜在経験年数が勤続年数より長い人は、三崎実業に入る前に他社で働いていた可能性が高い（浪人・留年などで差が出ることもある）。色分けして確かめよう。</p>
     </div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme"><textarea rows="7"># 勤続年数と時給の関係を、他社での経験の有無で色分けする
-misaki %>%
-  mutate(career = if_else(potential_exp > tenure, "他社での経験あり", "新卒で入社")) %>%
+misaki |>
+  mutate(career = if_else(potential_exp > tenure, "他社での経験あり", "新卒で入社")) |>
   ggplot(aes(x = tenure, y = wage_hourly, color = career)) +
   geom_point(size = 3, alpha = 0.8) +
   labs(title = "勤続年数と時給の関係", x = "勤続年数", y = "時給（円）", color = "経歴")</textarea></div>
@@ -486,8 +490,8 @@ ggplot(misaki, aes(x = wage_hourly, fill = workstyle)) +
     <h3>2つのカテゴリの組み合わせ：ヒートマップ</h3>
     <div class="prose"><p>2つのカテゴリ変数を縦と横に並べたマス目（タイル）を作り、マス目ごとの値（平均・人数など）を色の濃さで表すのが<b>ヒートマップ</b>。部署と勤務形態の組み合わせごとに平均時給を計算して描く。</p></div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki theme" data-plot="800x440"><textarea rows="19"># 部署と勤務形態の組み合わせごとに、平均時給と人数を計算する
-df_summary <- misaki %>%
-  group_by(dept, workstyle) %>%
+df_summary <- misaki |>
+  group_by(dept, workstyle) |>
   summarise(
     mean_wage = mean(wage_hourly),   # 平均時給
     n = n(),                         # 人数
@@ -513,7 +517,7 @@ ggplot(df_summary, aes(x = dept, y = workstyle, fill = mean_wage)) +
       <p>前回の配布資料の図1〜図3を自分で描き、社長の「全員完全出社」の方針が会社の利益にどう影響するかを考える材料にする。まず、配布資料の「データの見方」にある3つの変数を作る。</p>
     </div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki"><textarea rows="7"># 分析に使う変数を作る
-misaki <- misaki %>%
+misaki <- misaki |>
   mutate(
     ratio     = wage_hourly / productivity_hourly,   # 時給÷生産性（生んだ粗利のうち給与として払う割合）
     profit    = productivity_hourly - wage_hourly,   # 会社が得る1時間あたりの利益（円）
@@ -567,8 +571,8 @@ misaki <- misaki %>%
     <h3>会社が得る利益を比べる</h3>
     <div class="prose"><p>会社が得る利益は、社員1人1時間あたり「生産性−時給」（<code>profit</code>）と考えてよい。勤務形態ごとに、数字と図の両方で比べる。</p></div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars"><textarea rows="9"># 勤務形態ごとの平均を表にする
-misaki %>%
-  group_by(workstyle) %>%
+misaki |>
+  group_by(workstyle) |>
   summarise(
     n            = n(),                                 # 人数
     wage         = round(mean(wage_hourly)),            # 平均時給
@@ -588,8 +592,8 @@ ggplot(misaki, aes(x = workstyle, y = profit, fill = workstyle)) +
       <p>ハイブリッド勤務を選べるのは4部署だけだった。選べない部署の社員まで含めて比べると、部署の違いが混ざってしまう。4部署だけに絞り（<code>filter()</code>）、部署ごとに分けて比べてみよう。</p>
     </div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="860x480"><textarea rows="8"># ハイブリッド勤務を選べる4部署だけで、部署ごとに比べる
-misaki %>%
-  filter(dept %in% c("経営企画部", "財務経理部", "情報システム部", "海外事業部")) %>%
+misaki |>
+  filter(dept %in% c("経営企画部", "財務経理部", "情報システム部", "海外事業部")) |>
   ggplot(aes(x = workstyle, y = ratio, fill = workstyle)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.6) +
@@ -600,7 +604,7 @@ misaki %>%
     <h3>複数の変数をまとめて描く：<code>pivot_longer()</code></h3>
     <div class="prose"><p>時給と生産性の分布を、勤務形態別に並べて見たい。2つの列（<code>wage_hourly</code> と <code>productivity_hourly</code>）を、「どの変数か」を表す列（<code>variable</code>）と「値」の列（<code>value</code>）の2列にまとめ直す（縦長のデータにする）と、<code>facet_wrap()</code> で変数ごとに分けて描ける。</p></div>
     <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="860x440"><textarea rows="12"># 2つの列を、variable（変数名）と value（値）の2列にまとめ直す
-misaki_long <- misaki %>%
+misaki_long <- misaki |>
   pivot_longer(cols = c(wage_hourly, productivity_hourly),
                names_to = "variable", values_to = "value")
 
@@ -613,8 +617,8 @@ ggplot(misaki_long, aes(x = value, fill = workstyle)) +
 
     <div class="quizbox"><span class="label">課題</span>「7. 応用」のヒートマップのコードを書き換えて、部署×勤務形態ごとの<b>「時給÷生産性」の平均</b>を表すヒートマップを描いてみよう。
       <details class="shots"><summary>答えの例</summary>
-        <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="800x440"><textarea rows="10">df_ratio <- misaki %>%
-  group_by(dept, workstyle) %>%
+        <div class="code" data-where="Rのコード" data-needs="tidyverse" data-pre="misaki vars theme" data-plot="800x440"><textarea rows="10">df_ratio <- misaki |>
+  group_by(dept, workstyle) |>
   summarise(mean_ratio = mean(ratio), n = n(), .groups = "drop")
 
 ggplot(df_ratio, aes(x = dept, y = workstyle, fill = mean_ratio)) +
@@ -664,6 +668,7 @@ showtext_opts(dpi = 96)     # RStudioの画面表示用に戻す</textarea></div
           <tr><td>図を分割する</td><td><code>facet_wrap(~ 変数)</code></td></tr>
           <tr><td>対数目盛</td><td><code>scale_x_log10()</code>　<code>scale_y_log10()</code></td></tr>
           <tr><td>タイトル・軸の名前、見た目</td><td><code>labs()</code>　<code>theme_set()</code>　<code>theme()</code></td></tr>
+          <tr><td>手順をつなぐ（パイプ）</td><td><code>|&gt;</code>（<code>%&gt;%</code> でもよい）</td></tr>
           <tr><td>データの加工</td><td><code>mutate()</code>　<code>filter()</code>　<code>group_by()</code> と <code>summarise()</code>　<code>pivot_longer()</code></td></tr>
         </tbody>
       </table>
@@ -1004,6 +1009,8 @@ function hintFor(t) {
   }
   if (/does not exist in current working directory|cannot open file|No such file/.test(t))
     return 'ファイルが見つかりません。作業ディレクトリ（Files タブの歯車 → Set As Working Directory）が、misaki_employees.csv を置いたフォルダになっているか確認しましょう。うまくいかなければ、コメントにある Web 上のファイルを読み込む行を使いましょう。';
+  if (/unexpected '>'/.test(t))
+    return 'パイプ |> が使えないのは、Rのバージョンが古い（4.1より前）ためかもしれません。Rを新しくするか、|> を %>% に置き換えて実行しましょう。';
   if (/font family/.test(t))
     return '日本語フォントが登録されていません。「3.」の日本語の設定のコードを先に実行しましょう。';
   if ((m = /there is no package called ['‘]([^'’]+)['’]/.exec(t)))
