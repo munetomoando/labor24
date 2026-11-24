@@ -187,6 +187,7 @@ footer { margin-top: 64px; color: var(--muted); font-size: 14px; border-top: 2px
 .sf-status { font-weight: 700; }
 .sf-status.ok { color: var(--ink); background: var(--pass-soft); border-radius: 8px; padding: 2px 10px; }
 .sf-status.ng { color: var(--err); }
+a.btn { display: inline-block; text-decoration: none; }
 </style>
 </head>
 <body>
@@ -676,47 +677,20 @@ ggplot(df_ratio, aes(x = dept, y = workstyle, fill = mean_ratio)) +
     </div>
     <div class="note"><span class="label">提出のルール</span>
       <ul>
-        <li>受け付けるのは<b>11月25日の10:40〜12:20</b>だけ。受付日時はサーバー側で自動的に記録される</li>
+        <li>提出には<b>日本大学のアカウントでのログイン</b>が必要。ログインしたアカウント（メールアドレス）と受付日時が自動で記録される</li>
+        <li>受け付けるのは<b>11月25日の10:40〜12:20</b>だけ</li>
         <li>講義の内容を踏まえていない回答（講義の初めに送った、中身のない回答など）は、出席として認めない</li>
         <li>何度でも送り直せる。<b>最後に送ったもの</b>を提出として扱う</li>
-        <li>「受け付けました」と表示されれば提出完了。表示されなければ、もう一度送る</li>
       </ul>
     </div>
-    <form class="submitform" id="submitform" novalidate>
-      <div class="sf-row">
-        <label for="sf-id">学生番号</label>
-        <input id="sf-id" name="id" type="text" autocomplete="off" maxlength="20" required>
-      </div>
-      <div class="sf-row">
-        <label for="sf-name">氏名</label>
-        <input id="sf-name" name="name" type="text" autocomplete="name" maxlength="40" required>
-      </div>
-      <div class="sf-row">
-        <label for="sf-fig">選んだ図</label>
-        <select id="sf-fig" name="figure" required>
-          <option value="">（選んでください）</option>
-          <option>図1 生産性と時給（勤務形態別）</option>
-          <option>図2 生産性と時給（男女別）</option>
-          <option>図3 通勤時間と「時給÷生産性」</option>
-          <option>勤務形態ごとの1時間あたり利益（箱ひげ図）</option>
-          <option>ハイブリッド勤務を選べる4部署での「時給÷生産性」</option>
-          <option>時給と生産性の分布：勤務形態別（密度プロット）</option>
-          <option>部署×勤務形態の平均時給（ヒートマップ）</option>
-          <option>部署×勤務形態の「時給÷生産性」（ヒートマップ）</option>
-          <option value="その他">その他（下の欄に書く）</option>
-        </select>
-        <input id="sf-figother" name="figother" type="text" maxlength="80" placeholder="どの図か（例：年齢と時給の関係（男女別））" hidden>
-      </div>
-      <div class="sf-row">
-        <label for="sf-text">その図から何が言えるか（3行で）</label>
-        <textarea id="sf-text" name="text" rows="4" maxlength="1000" required></textarea>
-        <span class="sf-count" id="sf-count">0字</span>
-      </div>
-      <div class="sf-actions">
-        <button class="btn primary" id="sf-send" type="submit">提出する</button>
-        <span class="sf-status" id="sf-status" role="status" aria-live="polite"></span>
-      </div>
-    </form>
+    <ol class="steps">
+      <li>下の「<b>提出ページを開く</b>」を押す（別のタブで開く）</li>
+      <li>ログインを求められたら、<b>日本大学のアカウント</b>でログインする（個人のGoogleアカウントでは提出できない）</li>
+      <li>学生番号・氏名・選んだ図・説明を入力して「提出する」を押す</li>
+      <li>「受け付けました」と表示されれば提出完了。表示されなければ、もう一度押す</li>
+    </ol>
+    <p><a class="btn primary" id="submit-open" href="#submit" target="_blank" rel="noopener">提出ページを開く</a></p>
+    <div class="tip"><span class="label">うまく開けないとき</span>「アクセス権が必要です」「ファイルを開けません」と表示されたら、個人のGoogleアカウントで開いている。ブラウザの右上で日本大学のアカウントに切り替えるか、シークレットウィンドウで開いて日本大学のアカウントでログインし直す。</div>
   </section>
 
   <!-- 10 -->
@@ -1248,63 +1222,15 @@ document.querySelectorAll('figure img').forEach((img) => {
 });
 </script>
 <script>
-// ===== 課題の提出（Google Apps Script のウェブアプリに送る） =====
+// ===== 課題の提出（提出ページは Google Apps Script のウェブアプリ。日本大学のアカウントでログインして使う） =====
 // 教員向け：Apps Script をデプロイしたときに表示される「ウェブアプリのURL」（…/exec で終わる）を、下の '' の中に貼り付ける
 const SUBMIT_URL = 'https://script.google.com/a/macros/nihon-u.ac.jp/s/AKfycbzxYLdeCi5yYklZNBh9uW8qBl5-vYVzB0F8lyOZOxuXh4LTqAFvgkTy6qZEBiXxOOGq/exec';
 const LECTURE = '20261125';
-
 (() => {
-  const form = document.getElementById('submitform');
-  if (!form) return;
-  const $ = (id) => document.getElementById(id);
-  const fields = ['sf-id', 'sf-name', 'sf-fig', 'sf-figother', 'sf-text'];
-  const status = $('sf-status'), send = $('sf-send'), other = $('sf-figother'), text = $('sf-text');
-  const DRAFT_KEY = 'labor24-submit-draft';
-
-  const show = (msg, kind) => { status.textContent = msg; status.className = 'sf-status' + (kind ? ' ' + kind : ''); };
-  const syncOther = () => { other.hidden = $('sf-fig').value !== 'その他'; };
-  const count = () => { $('sf-count').textContent = text.value.length + '字'; };
-
-  // 書きかけの内容を、このブラウザに一時保存しておく（ページを再読み込みしても消えないように）
-  try {
-    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
-    fields.forEach((f) => { if (d[f] != null) $(f).value = d[f]; });
-  } catch (_) {}
-  const saveDraft = () => {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(Object.fromEntries(fields.map((f) => [f, $(f).value])))); } catch (_) {}
-  };
-  syncOther(); count();
-  form.addEventListener('input', () => { syncOther(); count(); saveDraft(); });
-
-  if (!SUBMIT_URL) { send.disabled = true; show('（提出先がまだ設定されていません）', 'ng'); }
-
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    if (!SUBMIT_URL) return;
-    const fig = $('sf-fig').value === 'その他' ? 'その他：' + other.value.trim() : $('sf-fig').value;
-    const data = { lecture: LECTURE, id: $('sf-id').value.trim(), name: $('sf-name').value.trim(), figure: fig, text: text.value.trim() };
-    const miss = [];
-    if (!data.id) miss.push('学籍番号');
-    if (!data.name) miss.push('氏名');
-    if (!$('sf-fig').value || (fig.startsWith('その他：') && fig.length <= 4)) miss.push('選んだ図');
-    if (!data.text) miss.push('説明');
-    if (miss.length) { show(miss.join('・') + 'を入力してください', 'ng'); return; }
-
-    send.disabled = true; show('送信しています…');
-    let res = null;
-    for (let i = 0; i < 2 && !res; i++) {          // 混み合って失敗したときは、1回だけ自動で送り直す
-      try {
-        // text/plain で送ると、ブラウザの事前確認（CORS preflight）なしに Apps Script へ送れる
-        const r = await fetch(SUBMIT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(data) });
-        res = await r.json();
-      } catch (_) { if (i === 0) await new Promise((ok) => setTimeout(ok, 1500)); }
-    }
-    send.disabled = false;
-    if (!res) show('送信できませんでした。通信状態を確かめて、もう一度「提出する」を押してください', 'ng');
-    else show(res.message || (res.ok ? '受け付けました' : '受け付けられませんでした'), res.ok ? 'ok' : 'ng');
-    // 提出できたら一時保存は消す（共用パソコンに学籍番号や氏名を残さないため）。画面の入力欄は残るので、そのまま直して送り直せる
-    if (res && res.ok) { try { localStorage.removeItem(DRAFT_KEY); } catch (_) {} }
-  });
+  const a = document.getElementById('submit-open');
+  if (!a) return;
+  if (SUBMIT_URL) a.href = SUBMIT_URL + '?lecture=' + encodeURIComponent(LECTURE);
+  else { a.removeAttribute('target'); a.textContent = '（提出ページはまだ準備中です）'; }
 })();
 </script>
 </body>
